@@ -40,7 +40,10 @@ func Open(dir string) (*Store, error) {
 	return s, nil
 }
 
-func (s *Store) Get(_ context.Context, id string) (*domain.ConservationCase, error) {
+func (s *Store) Get(ctx context.Context, id string) (*domain.ConservationCase, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	c, ok := s.cases[id]
@@ -50,7 +53,10 @@ func (s *Store) Get(_ context.Context, id string) (*domain.ConservationCase, err
 	return c.Clone(), nil
 }
 
-func (s *Store) List(_ context.Context) ([]*domain.ConservationCase, error) {
+func (s *Store) List(ctx context.Context) ([]*domain.ConservationCase, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	items := make([]*domain.ConservationCase, 0, len(s.cases))
@@ -61,7 +67,10 @@ func (s *Store) List(_ context.Context) ([]*domain.ConservationCase, error) {
 	return items, nil
 }
 
-func (s *Store) Query(_ context.Context, query application.CaseQuery) (application.CasePage, error) {
+func (s *Store) Query(ctx context.Context, query application.CaseQuery) (application.CasePage, error) {
+	if err := ctx.Err(); err != nil {
+		return application.CasePage{}, err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	keyword := strings.ToLower(strings.TrimSpace(query.Keyword))
@@ -99,7 +108,10 @@ func (s *Store) Query(_ context.Context, query application.CaseQuery) (applicati
 	return application.CasePage{Cases: base[start:end], Total: total, Page: query.Page, PageSize: query.PageSize, Counts: counts, ProjectionVersion: s.headHash}, nil
 }
 
-func (s *Store) LookupIdempotency(_ context.Context, scope, key, payloadHash string) (domain.CommitResult, bool, error) {
+func (s *Store) LookupIdempotency(ctx context.Context, scope, key, payloadHash string) (domain.CommitResult, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.CommitResult{}, false, err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	record, ok := s.idempotency[idempotencyID(scope, key)]
@@ -163,7 +175,10 @@ func (s *Store) Commit(ctx context.Context, request domain.CommitRequest) (domai
 	return domain.CommitResult{Response: cloneRaw(request.Response)}, nil
 }
 
-func (s *Store) Verify(_ context.Context) error {
+func (s *Store) Verify(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, c := range s.cases {
