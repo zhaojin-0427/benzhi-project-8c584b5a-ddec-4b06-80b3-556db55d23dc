@@ -68,7 +68,7 @@ func (s *Store) Query(_ context.Context, query application.CaseQuery) (applicati
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.hasQueryCache && s.cachedQuery == query {
-		return s.cachedPage, nil
+		return clonePage(s.cachedPage), nil
 	}
 	keyword := strings.ToLower(strings.TrimSpace(query.Keyword))
 	conservator := strings.ToLower(strings.TrimSpace(query.ResponsibleConservator))
@@ -104,9 +104,27 @@ func (s *Store) Query(_ context.Context, query application.CaseQuery) (applicati
 	}
 	page := application.CasePage{Cases: base[start:end], Total: total, Page: query.Page, PageSize: query.PageSize, Counts: counts, ProjectionVersion: s.headHash}
 	s.cachedQuery = query
-	s.cachedPage = page
+	s.cachedPage = clonePage(page)
 	s.hasQueryCache = true
 	return page, nil
+}
+
+// clonePage 返回与原页面互不共享可变数据的深拷贝，确保缓存投影与调用方
+// 修改的结果相互隔离：Cases 中的聚合各自独立克隆，Counts 也重建为独立 map。
+func clonePage(page application.CasePage) application.CasePage {
+	cases := make([]*domain.ConservationCase, len(page.Cases))
+	for i, c := range page.Cases {
+		if c == nil {
+			cases[i] = nil
+			continue
+		}
+		cases[i] = c.Clone()
+	}
+	counts := make(map[domain.Status]int, len(page.Counts))
+	for status, value := range page.Counts {
+		counts[status] = value
+	}
+	return application.CasePage{Cases: cases, Total: page.Total, Page: page.Page, PageSize: page.PageSize, Counts: counts, ProjectionVersion: page.ProjectionVersion}
 }
 
 func (s *Store) LookupIdempotency(_ context.Context, scope, key, payloadHash string) (domain.CommitResult, bool, error) {
