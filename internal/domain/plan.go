@@ -53,7 +53,16 @@ func (p TreatmentPlanRevision) Clone() TreatmentPlanRevision {
 	p.Materials = append([]Material(nil), p.Materials...)
 	p.Coverage = p.Coverage.Clone()
 	p.RemediationResolutions = append([]RemediationResolution(nil), p.RemediationResolutions...)
+	p.SubmittedAt = cloneTimePtr(p.SubmittedAt)
 	return p
+}
+
+func cloneTimePtr(t *time.Time) *time.Time {
+	if t == nil {
+		return nil
+	}
+	c := *t
+	return &c
 }
 
 type DamageCoverage struct {

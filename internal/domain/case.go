@@ -80,6 +80,9 @@ func (c *ConservationCase) Clone() *ConservationCase {
 		copyCase.Reviews[i].EvidenceSnapshot = c.Reviews[i].EvidenceSnapshot.Clone()
 	}
 	copyCase.RemediationItems = append([]RemediationItem(nil), c.RemediationItems...)
+	for i := range copyCase.RemediationItems {
+		copyCase.RemediationItems[i].ClosedAt = cloneTimePtr(copyCase.RemediationItems[i].ClosedAt)
+	}
 	copyCase.AuditTrail = append([]AuditRecord(nil), c.AuditTrail...)
 	if c.Credential != nil {
 		cred := *c.Credential

@@ -72,6 +72,7 @@ func (a CompatibilityAssessment) Clone() CompatibilityAssessment {
 	a.RuleFindings = append([]RuleFinding(nil), a.RuleFindings...)
 	a.WarningDispositions = append([]WarningDisposition(nil), a.WarningDispositions...)
 	a.SampleRounds = append([]SampleRound(nil), a.SampleRounds...)
+	a.SampledAt = cloneTimePtr(a.SampledAt)
 	return a
 }
 
