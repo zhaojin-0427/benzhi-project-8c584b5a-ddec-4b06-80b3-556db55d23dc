@@ -58,18 +58,23 @@ func (s *Service) mutate(ctx context.Context, caseID, action string, meta Comman
 func (s *Service) commit(ctx context.Context, scope, payloadHash string, meta CommandMeta, c *domain.ConservationCase, event domain.Event, credential *domain.ReleaseCredential) (OperationResult, error) {
 	result := OperationResult{Case: c.Clone(), Credential: credential}
 	flightIdentity := scope + "\x00" + meta.IdempotencyKey + "\x00" + payloadHash
-	flight, leader := s.beginFlight(flightIdentity, result)
+	flight, leader := s.beginFlight(flightIdentity)
 	if !leader {
-		return flight.result, nil
+		// A controlled overlap is in progress: wait for the first request's
+		// persisted final result (or respond to this context's cancellation).
+		// We never hand back the un-persisted OperationResult built above.
+		return waitForFlight(ctx, flight)
 	}
-	defer s.endFlight(flightIdentity)
 	response, err := json.Marshal(result)
 	if err != nil {
+		s.endFlight(flightIdentity, flight, OperationResult{}, err)
 		return OperationResult{}, err
 	}
-	committed, err := s.repository.Commit(ctx, domain.CommitRequest{Scope: scope, IdempotencyKey: meta.IdempotencyKey,
+	committed, commitErr := s.repository.Commit(ctx, domain.CommitRequest{Scope: scope, IdempotencyKey: meta.IdempotencyKey,
 		PayloadHash: payloadHash, ExpectedVersion: meta.ExpectedVersion, Case: c, Event: event, Response: response})
-	return decodeResult(committed, err)
+	finalResult, finalErr := decodeResult(committed, commitErr)
+	s.endFlight(flightIdentity, flight, finalResult, finalErr)
+	return finalResult, finalErr
 }
 
 func decodeResult(result domain.CommitResult, err error) (OperationResult, error) {

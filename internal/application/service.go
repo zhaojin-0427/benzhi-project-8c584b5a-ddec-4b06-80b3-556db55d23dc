@@ -23,28 +23,48 @@ type Service struct {
 }
 
 type operationFlight struct {
+	done   chan struct{}
 	result OperationResult
+	err    error
 }
 
 func NewService(repository Repository, issuer *audit.Issuer) *Service {
 	return &Service{repository: repository, issuer: issuer, now: func() time.Time { return time.Now().UTC() }, newID: randomID, flights: map[string]*operationFlight{}}
 }
 
-func (s *Service) beginFlight(identity string, result OperationResult) (*operationFlight, bool) {
+func (s *Service) beginFlight(identity string) (*operationFlight, bool) {
 	s.flightMu.Lock()
 	defer s.flightMu.Unlock()
 	if existing, ok := s.flights[identity]; ok {
 		return existing, false
 	}
-	flight := &operationFlight{result: result}
+	flight := &operationFlight{done: make(chan struct{})}
 	s.flights[identity] = flight
 	return flight, true
 }
 
-func (s *Service) endFlight(identity string) {
+func (s *Service) endFlight(identity string, flight *operationFlight, result OperationResult, err error) {
+	flight.result = result
+	flight.err = err
+	close(flight.done)
 	s.flightMu.Lock()
-	delete(s.flights, identity)
+	if s.flights[identity] == flight {
+		delete(s.flights, identity)
+	}
 	s.flightMu.Unlock()
+}
+
+// waitForFlight observes the leader's in-flight commit, returning its final
+// persisted result. If the caller's context is cancelled before the leader
+// finishes, the context error is returned instead; callers never see an
+// un-persisted success result.
+func waitForFlight(ctx context.Context, flight *operationFlight) (OperationResult, error) {
+	select {
+	case <-flight.done:
+		return flight.result, flight.err
+	case <-ctx.Done():
+		return OperationResult{}, ctx.Err()
+	}
 }
 
 func (s *Service) GetCase(ctx context.Context, id string) (*domain.ConservationCase, error) {
