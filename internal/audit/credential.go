@@ -70,10 +70,20 @@ func (i *Issuer) Verify(c *domain.ConservationCase) (bool, error) {
 }
 
 func (i *Issuer) VerifySignature(credential domain.ReleaseCredential) bool {
-	if verified, ok := i.verifiedSignatures.Load(credential.ID); ok {
+	key := signatureCacheKey(credential)
+	if verified, ok := i.verifiedSignatures.Load(key); ok {
 		return verified.(bool)
 	}
 	verified := domain.VerifyCredentialSignature(credential, i.secret)
-	i.verifiedSignatures.Store(credential.ID, verified)
+	i.verifiedSignatures.Store(key, verified)
 	return verified
+}
+
+// signatureCacheKey 覆盖参与凭据签名计算的全部输入。凭据 ID 在同一档案放行流程
+// 内保持稳定，但签名是否合法取决于 ID、方案摘要、证据摘要、审计链头、批准人、
+// 签发时间与凭据声明的 Signature 共同决定。仓储刷新出 ID 相同但签名输入已变化
+// 的凭据时，组合键不再命中陈旧缓存，使签名校验重新执行并判定为无效；未变化的
+// 合法凭据各字段不变，仍命中缓存。
+func signatureCacheKey(c domain.ReleaseCredential) string {
+	return c.ID + "\x1f" + c.CaseID + "\x1f" + c.FrozenPlanRevisionID + "\x1f" + c.ApprovedBy + "\x1f" + c.IssuedAt.UTC().Format(time.RFC3339Nano) + "\x1f" + c.ContentDigest + "\x1f" + c.EvidenceDigest + "\x1f" + c.AuditHeadHash + "\x1f" + c.Signature
 }
