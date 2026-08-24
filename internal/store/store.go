@@ -16,14 +16,17 @@ import (
 )
 
 type Store struct {
-	mu           sync.RWMutex
-	dir          string
-	logPath      string
-	snapshotPath string
-	cases        map[string]*domain.ConservationCase
-	idempotency  map[string]domain.IdempotencyRecord
-	sequence     int64
-	headHash     string
+	mu            sync.RWMutex
+	dir           string
+	logPath       string
+	snapshotPath  string
+	cases         map[string]*domain.ConservationCase
+	idempotency   map[string]domain.IdempotencyRecord
+	sequence      int64
+	headHash      string
+	cachedQuery   application.CaseQuery
+	cachedPage    application.CasePage
+	hasQueryCache bool
 }
 
 func Open(dir string) (*Store, error) {
@@ -62,8 +65,11 @@ func (s *Store) List(_ context.Context) ([]*domain.ConservationCase, error) {
 }
 
 func (s *Store) Query(_ context.Context, query application.CaseQuery) (application.CasePage, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.hasQueryCache && s.cachedQuery == query {
+		return s.cachedPage, nil
+	}
 	keyword := strings.ToLower(strings.TrimSpace(query.Keyword))
 	conservator := strings.ToLower(strings.TrimSpace(query.ResponsibleConservator))
 	counts := map[domain.Status]int{domain.StatusDraft: 0, domain.StatusPendingCompatibility: 0, domain.StatusPendingSample: 0, domain.StatusPendingReview: 0, domain.StatusReturned: 0, domain.StatusApproved: 0, domain.StatusReleased: 0}
@@ -96,7 +102,11 @@ func (s *Store) Query(_ context.Context, query application.CaseQuery) (applicati
 	if end > total {
 		end = total
 	}
-	return application.CasePage{Cases: base[start:end], Total: total, Page: query.Page, PageSize: query.PageSize, Counts: counts, ProjectionVersion: s.headHash}, nil
+	page := application.CasePage{Cases: base[start:end], Total: total, Page: query.Page, PageSize: query.PageSize, Counts: counts, ProjectionVersion: s.headHash}
+	s.cachedQuery = query
+	s.cachedPage = page
+	s.hasQueryCache = true
+	return page, nil
 }
 
 func (s *Store) LookupIdempotency(_ context.Context, scope, key, payloadHash string) (domain.CommitResult, bool, error) {
@@ -157,6 +167,7 @@ func (s *Store) Commit(ctx context.Context, request domain.CommitRequest) (domai
 	s.cases[request.Case.ID] = request.Case.Clone()
 	s.idempotency[key] = record
 	s.sequence, s.headHash = envelope.Sequence, envelope.Hash
+	s.hasQueryCache = false
 	if err := s.writeSnapshot(); err != nil {
 		return domain.CommitResult{}, fmt.Errorf("事件已持久化但投影写入失败，重启后可恢复: %w", err)
 	}
