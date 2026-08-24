@@ -12,31 +12,23 @@ import (
 	"manuscript-conservation-gate/internal/domain"
 )
 
-func appendEnvelope(path string, envelope transactionEnvelope) error {
+func (s *Store) appendEnvelope(envelope transactionEnvelope) error {
 	data, err := json.Marshal(envelope)
 	if err != nil {
 		return fmt.Errorf("编码事件事务: %w", err)
 	}
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o640)
-	if err != nil {
-		return fmt.Errorf("打开事件日志: %w", err)
-	}
-	closed := false
-	defer func() {
-		if !closed {
-			_ = file.Close()
+	if s.logFile == nil {
+		s.logFile, err = os.OpenFile(s.logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o640)
+		if err != nil {
+			return fmt.Errorf("打开事件日志: %w", err)
 		}
-	}()
-	if _, err := file.Write(append(data, '\n')); err != nil {
+	}
+	if _, err := s.logFile.Write(append(data, '\n')); err != nil {
 		return fmt.Errorf("追加事件日志: %w", err)
 	}
-	if err := file.Sync(); err != nil {
+	if err := s.logFile.Sync(); err != nil {
 		return fmt.Errorf("同步事件日志: %w", err)
 	}
-	if err := file.Close(); err != nil {
-		return fmt.Errorf("关闭事件日志: %w", err)
-	}
-	closed = true
 	return nil
 }
 

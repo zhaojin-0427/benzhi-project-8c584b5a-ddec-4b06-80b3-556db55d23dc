@@ -19,6 +19,7 @@ type Store struct {
 	mu           sync.RWMutex
 	dir          string
 	logPath      string
+	logFile      *os.File
 	snapshotPath string
 	cases        map[string]*domain.ConservationCase
 	idempotency  map[string]domain.IdempotencyRecord
@@ -151,7 +152,7 @@ func (s *Store) Commit(ctx context.Context, request domain.CommitRequest) (domai
 		return domain.CommitResult{}, err
 	}
 	envelope.Hash = hash
-	if err := appendEnvelope(s.logPath, envelope); err != nil {
+	if err := s.appendEnvelope(envelope); err != nil {
 		return domain.CommitResult{}, err
 	}
 	s.cases[request.Case.ID] = request.Case.Clone()
