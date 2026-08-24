@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="古籍修复方案治理工作台">
+  <title>古籍修复放行门禁</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <link rel="stylesheet" href="/assets/workbench.css">
+  <script src="/assets/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div><p class="eyebrow">MANUSCRIPT CONSERVATION</p><h1>古籍修复放行门禁</h1></div>
+    <div id="health" class="health">正在检查数据完整性…</div>
+  </header>
+  <main>
+    <aside class="case-rail">
+      <div class="rail-title"><h2>修复档案</h2><button id="new-case" class="secondary">新建</button></div>
+      <form id="filter-form" class="filters"><input name="keyword" placeholder="馆藏编号或题名"><input name="responsibleConservator" placeholder="责任修复师"><select name="status"><option value="">全部状态</option><option value="DRAFT">草拟中</option><option value="PENDING_COMPATIBILITY">待核验</option><option value="PENDING_SAMPLE">待试样</option><option value="PENDING_REVIEW">待复核</option><option value="RETURNED_REMEDIATION">退回整改</option><option value="APPROVED">已批准</option><option value="RELEASED">已放行</option></select><button type="submit" class="secondary">筛选</button></form>
+      <div id="queue-stats" class="queue-stats"></div>
+      <div id="case-list" class="case-list"><p class="muted">载入中…</p></div>
+    </aside>
+
+    <section class="workspace">
+      <div id="empty-state" class="empty-state">
+        <div class="seal">修</div><h2>让每一次修复都有证据</h2>
+        <p>建立档案后，按损伤基线、版本化方案、材料核验、模拟试样、专家复核和放行顺序推进。</p>
+        <button id="empty-new">建立第一份档案</button>
+      </div>
+
+      <div id="case-view" hidden>
+        <section class="case-heading">
+          <div><p id="case-accession" class="eyebrow"></p><h2 id="case-title"></h2><p id="case-location" class="muted"></p></div>
+          <div class="status-block"><span id="case-status" class="status"></span><span id="case-version" class="version"></span></div>
+        </section>
+        <nav id="progress" class="progress" aria-label="流程进度"></nav>
+        <div id="gate-note" class="gate-note"></div>
+        <section class="grid">
+          <article class="panel"><div class="panel-head"><h3>损伤基线</h3><span id="damage-count" class="count"></span></div><div id="damage-list"></div><button id="show-damage" class="secondary action">登记受损页</button></article>
+          <article class="panel"><div class="panel-head"><h3>当前修复方案</h3><span id="plan-revision" class="count"></span></div><div id="plan-summary"></div><button id="show-plan" class="secondary action">编制新版本</button><button id="submit-plan" class="action">提交核验</button></article>
+          <article class="panel"><div class="panel-head"><h3>材料相容性</h3><span id="finding-count" class="count"></span></div><div id="assessment-summary"></div><button id="assess" class="action">执行规则核验</button><button id="show-warning" class="secondary action">确认警示处置</button></article>
+          <article class="panel"><div class="panel-head"><h3>模拟试样</h3></div><div id="sample-summary"></div><button id="show-sample" class="action">记录试样</button></article>
+          <article class="panel"><div class="panel-head"><h3>专家复核</h3></div><div id="review-summary"></div><button id="show-review" class="action">填写复核决定</button></article>
+          <article class="panel release-panel"><div class="panel-head"><h3>冻结与放行</h3></div><div id="release-summary"></div><button id="release" class="action">冻结并签发凭据</button><button id="verify" class="secondary action">验证凭据</button></article>
+        </section>
+        <details class="audit"><summary>审计追溯记录 <span id="audit-count"></span></summary><ol id="audit-list"></ol></details>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="case-dialog"><form id="case-form"><header><h2>建立修复档案</h2><button type="button" class="close">×</button></header><label>馆藏编号<input name="accessionCode" required maxlength="64" placeholder="善本-2026-001"></label><label>题名<input name="title" required maxlength="120"></label><label>馆藏定位<input name="shelfLocation" required maxlength="100" placeholder="古籍库一层 A03-2"></label><label>责任修复师<input name="responsibleConservator" required maxlength="80"></label><label>操作人<input name="actor" required value="修复师"></label><button type="submit">建立档案</button></form></dialog>
+  <dialog id="damage-dialog"><form id="damage-form"><header><h2>批量登记受损页</h2><button type="button" class="close">×</button></header><div id="damage-rows"></div><button id="add-damage-row" type="button" class="secondary">增加一行</button><label>记录人<input name="actor" required value="修复师"></label><button type="submit">整批保存基线</button></form></dialog>
+  <template id="damage-row-template"><fieldset class="damage-row"><div class="form-row"><label>页位<input name="folioRef" required placeholder="卷一 第 3 叶正"></label><label>损伤类型<input name="damageType" required placeholder="虫蛀、撕裂、霉斑等"></label></div><label>损伤范围<input name="extent" required placeholder="右下角约 3×2 cm"></label><label>严重度<select name="severity"><option value="LOW">轻微</option><option value="MODERATE" selected>中等</option><option value="HIGH">严重</option></select></label><label>图文证据摘要<textarea name="evidenceNote" required></textarea></label><button type="button" class="remove-row secondary">删除本行</button></fieldset></template>
+  <dialog id="plan-dialog"><form id="plan-form"><header><h2>编制方案版本</h2><button type="button" class="close">×</button></header><label>修复步骤说明<textarea name="description" required placeholder="清洁受损区域后，以补纸托补缺损"></textarea></label><label>采用工艺<input name="technique" required value="原位托补"></label><fieldset><legend>本步骤关联的损伤基线</legend><div id="plan-damage-targets"></div></fieldset><div class="form-row"><label>材料名称<input name="materialName" required value="楮皮补纸"></label><label>类别<input name="category" required value="补纸"></label></div><div class="form-row"><label>材料 pH<input name="ph" type="number" min="0" max="14" step="0.1" value="7" required></label><label>必需试样轮数<input name="requiredSampleRounds" type="number" min="1" max="10" value="1" required></label></div><div class="form-row"><label class="check"><input name="reversible" type="checkbox" checked>工艺可逆</label><label class="check"><input name="waterBased" type="checkbox">水性材料</label><label class="check"><input name="containsMetal" type="checkbox">含金属</label></div><label>纸张约束<input name="paperConstraint" value="纸张轻度酸化"></label><label>颜料约束<input name="pigmentConstraint" value="无水敏颜料"></label><label>装帧约束<input name="bindingConstraint" value="保持原装帧"></label><label>变更原因<input name="changeReason" placeholder="首版可不填；整改版本必须填写"></label><div id="remediation-form"></div><label>编制人<input name="actor" required value="修复师"></label><button type="submit">保存为新版本</button></form></dialog>
+  <dialog id="warning-dialog"><form id="warning-form"><header><h2>确认相容性警示</h2><button type="button" class="close">×</button></header><div id="warning-fields"></div><label>确认人<input name="actor" value="材料核验员" required></label><button type="submit">提交警示处置</button></form></dialog>
+  <dialog id="sample-dialog"><form id="sample-form"><header><h2>追加模拟试样轮次</h2><button type="button" class="close">×</button></header><div class="form-row"><label>材料批次<input name="materialBatch" required></label><label>轮次<input id="sample-round" name="round" type="number" readonly></label></div><div class="form-row"><label>温度（℃）<input name="temperatureC" type="number" min="5" max="40" step="0.1" value="22" required></label><label>相对湿度（%）<input name="humidityPercent" type="number" min="20" max="80" step="0.1" value="50" required></label><label>作用时长（分钟）<input name="durationMinutes" type="number" min="1" max="10080" value="60" required></label></div><label>色差观察<input name="colorDifference" required value="无明显色差"></label><label>形变观察<input name="deformation" required value="无明显形变"></label><label>完整观察说明<textarea name="observations" required></textarea></label><label>结论<select name="sampleOutcome"><option value="PASS">通过</option><option value="FAIL">失败并退回整改</option></select></label><label>执行人<input name="actor" value="材料核验员" required></label><button type="submit">保存本轮</button></form></dialog>
+  <dialog id="review-dialog"><form id="review-form"><header><h2>专家复核</h2><button type="button" class="close">×</button></header><div id="review-evidence"></div><label>复核决定<select name="decision"><option value="APPROVE">批准</option><option value="RETURN">附意见退回</option></select></label><label>意见类别<input name="category" value="工艺完整性"></label><label>关联对象类型<select name="objectType"><option value="folio">页位</option><option value="step">方案步骤</option><option value="material">材料</option><option value="sample">试样轮次</option></select></label><label>关联对象标识<input name="objectID" placeholder="页位、步骤、材料或试样轮次标识"></label><label>结构化意见<textarea name="comment" placeholder="退回时必须填写可执行说明"></textarea></label><label class="check"><input name="required" type="checkbox" checked>必须整改</label><label>复核专家<input name="actor" value="复核专家" required></label><button type="submit">提交复核决定</button></form></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

@@ -1,0 +1,7 @@
+.filters { display: grid; gap: 7px; margin-top: 16px; }
+.filters input, .filters select { font-size: 12px; padding: 8px; }
+.queue-stats { margin-top: 12px; font: 11px/1.7 system-ui, sans-serif; color: var(--muted); }
+fieldset { border: 1px solid var(--line); padding: 12px; display: grid; gap: 10px; }
+legend { font: 700 12px system-ui, sans-serif; }
+.damage-row, .remediation-input, .warning-input { margin-bottom: 10px; }
+small { color: var(--muted); }
