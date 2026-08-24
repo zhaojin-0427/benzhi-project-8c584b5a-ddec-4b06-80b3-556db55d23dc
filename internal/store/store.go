@@ -16,14 +16,17 @@ import (
 )
 
 type Store struct {
-	mu           sync.RWMutex
-	dir          string
-	logPath      string
-	snapshotPath string
-	cases        map[string]*domain.ConservationCase
-	idempotency  map[string]domain.IdempotencyRecord
-	sequence     int64
-	headHash     string
+	mu                 sync.RWMutex
+	dir                string
+	logPath            string
+	snapshotPath       string
+	cases              map[string]*domain.ConservationCase
+	idempotency        map[string]domain.IdempotencyRecord
+	sequence           int64
+	headHash           string
+	verifiedSequence   int64
+	verificationCached bool
+	verificationResult error
 }
 
 func Open(dir string) (*Store, error) {
@@ -164,8 +167,19 @@ func (s *Store) Commit(ctx context.Context, request domain.CommitRequest) (domai
 }
 
 func (s *Store) Verify(_ context.Context) error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.verificationCached && s.verifiedSequence == s.sequence {
+		return s.verificationResult
+	}
+	err := s.verifyLocked()
+	s.verifiedSequence = s.sequence
+	s.verificationResult = err
+	s.verificationCached = true
+	return err
+}
+
+func (s *Store) verifyLocked() error {
 	for _, c := range s.cases {
 		if err := audit.Verify(c.AuditTrail); err != nil {
 			return err
