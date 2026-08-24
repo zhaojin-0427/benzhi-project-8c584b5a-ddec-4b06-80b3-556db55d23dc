@@ -57,6 +57,12 @@ func (s *Service) mutate(ctx context.Context, caseID, action string, meta Comman
 
 func (s *Service) commit(ctx context.Context, scope, payloadHash string, meta CommandMeta, c *domain.ConservationCase, event domain.Event, credential *domain.ReleaseCredential) (OperationResult, error) {
 	result := OperationResult{Case: c.Clone(), Credential: credential}
+	flightIdentity := scope + "\x00" + meta.IdempotencyKey + "\x00" + payloadHash
+	flight, leader := s.beginFlight(flightIdentity, result)
+	if !leader {
+		return flight.result, nil
+	}
+	defer s.endFlight(flightIdentity)
 	response, err := json.Marshal(result)
 	if err != nil {
 		return OperationResult{}, err

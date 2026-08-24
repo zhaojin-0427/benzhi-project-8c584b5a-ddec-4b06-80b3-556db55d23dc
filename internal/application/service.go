@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"manuscript-conservation-gate/internal/audit"
@@ -17,10 +18,33 @@ type Service struct {
 	issuer     *audit.Issuer
 	now        func() time.Time
 	newID      func(string) string
+	flightMu   sync.Mutex
+	flights    map[string]*operationFlight
+}
+
+type operationFlight struct {
+	result OperationResult
 }
 
 func NewService(repository Repository, issuer *audit.Issuer) *Service {
-	return &Service{repository: repository, issuer: issuer, now: func() time.Time { return time.Now().UTC() }, newID: randomID}
+	return &Service{repository: repository, issuer: issuer, now: func() time.Time { return time.Now().UTC() }, newID: randomID, flights: map[string]*operationFlight{}}
+}
+
+func (s *Service) beginFlight(identity string, result OperationResult) (*operationFlight, bool) {
+	s.flightMu.Lock()
+	defer s.flightMu.Unlock()
+	if existing, ok := s.flights[identity]; ok {
+		return existing, false
+	}
+	flight := &operationFlight{result: result}
+	s.flights[identity] = flight
+	return flight, true
+}
+
+func (s *Service) endFlight(identity string) {
+	s.flightMu.Lock()
+	delete(s.flights, identity)
+	s.flightMu.Unlock()
 }
 
 func (s *Service) GetCase(ctx context.Context, id string) (*domain.ConservationCase, error) {
