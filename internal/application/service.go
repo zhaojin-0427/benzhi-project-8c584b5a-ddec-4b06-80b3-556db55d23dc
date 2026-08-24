@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"manuscript-conservation-gate/internal/audit"
@@ -13,14 +14,16 @@ import (
 )
 
 type Service struct {
-	repository Repository
-	issuer     *audit.Issuer
-	now        func() time.Time
-	newID      func(string) string
+	repository   Repository
+	issuer       *audit.Issuer
+	now          func() time.Time
+	newID        func(string) string
+	queryMu      sync.Mutex
+	queryFlights map[CaseQuery]*queryFlight
 }
 
 func NewService(repository Repository, issuer *audit.Issuer) *Service {
-	return &Service{repository: repository, issuer: issuer, now: func() time.Time { return time.Now().UTC() }, newID: randomID}
+	return &Service{repository: repository, issuer: issuer, now: func() time.Time { return time.Now().UTC() }, newID: randomID, queryFlights: make(map[CaseQuery]*queryFlight)}
 }
 
 func (s *Service) GetCase(ctx context.Context, id string) (*domain.ConservationCase, error) {
@@ -43,7 +46,55 @@ func (s *Service) QueryCases(ctx context.Context, query CaseQuery) (CasePage, er
 	if query.Status != "" && !domain.ValidStatus(query.Status) {
 		return CasePage{}, invalidInput("status", "未知档案状态")
 	}
-	return s.repository.Query(ctx, query)
+	return s.queryCases(ctx, query)
+}
+
+type queryFlight struct {
+	done chan struct{}
+	page CasePage
+	err  error
+}
+
+func (s *Service) queryCases(ctx context.Context, query CaseQuery) (CasePage, error) {
+	s.queryMu.Lock()
+	if flight, found := s.queryFlights[query]; found {
+		s.queryMu.Unlock()
+		select {
+		case <-ctx.Done():
+			return CasePage{}, ctx.Err()
+		case <-flight.done:
+			return cloneCasePage(flight.page), flight.err
+		}
+	}
+	flight := &queryFlight{done: make(chan struct{})}
+	s.queryFlights[query] = flight
+	s.queryMu.Unlock()
+
+	flight.page, flight.err = s.repository.Query(ctx, query)
+	s.queryMu.Lock()
+	delete(s.queryFlights, query)
+	close(flight.done)
+	s.queryMu.Unlock()
+	return cloneCasePage(flight.page), flight.err
+}
+
+func cloneCasePage(page CasePage) CasePage {
+	clone := page
+	if page.Cases != nil {
+		clone.Cases = make([]*domain.ConservationCase, len(page.Cases))
+		for index, item := range page.Cases {
+			if item != nil {
+				clone.Cases[index] = item.Clone()
+			}
+		}
+	}
+	if page.Counts != nil {
+		clone.Counts = make(map[domain.Status]int, len(page.Counts))
+		for status, count := range page.Counts {
+			clone.Counts[status] = count
+		}
+	}
+	return clone
 }
 
 func (s *Service) VerifyStore(ctx context.Context) error { return s.repository.Verify(ctx) }
