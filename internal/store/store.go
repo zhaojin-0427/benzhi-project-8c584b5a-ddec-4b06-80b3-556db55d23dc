@@ -154,10 +154,18 @@ func (s *Store) Commit(ctx context.Context, request domain.CommitRequest) (domai
 	if err := appendEnvelope(s.logPath, envelope); err != nil {
 		return domain.CommitResult{}, err
 	}
+	previousSequence, previousHeadHash := s.sequence, s.headHash
 	s.cases[request.Case.ID] = request.Case.Clone()
 	s.idempotency[key] = record
 	s.sequence, s.headHash = envelope.Sequence, envelope.Hash
 	if err := s.writeSnapshot(); err != nil {
+		if exists {
+			s.cases[request.Case.ID] = current
+		} else {
+			delete(s.cases, request.Case.ID)
+		}
+		delete(s.idempotency, key)
+		s.sequence, s.headHash = previousSequence, previousHeadHash
 		return domain.CommitResult{}, fmt.Errorf("事件已持久化但投影写入失败，重启后可恢复: %w", err)
 	}
 	return domain.CommitResult{Response: cloneRaw(request.Response)}, nil
