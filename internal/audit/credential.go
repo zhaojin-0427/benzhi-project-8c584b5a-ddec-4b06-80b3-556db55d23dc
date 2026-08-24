@@ -4,12 +4,16 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"manuscript-conservation-gate/internal/domain"
 )
 
-type Issuer struct{ secret string }
+type Issuer struct {
+	secret             string
+	verifiedSignatures sync.Map
+}
 
 func NewIssuer(secret string) (*Issuer, error) {
 	secret = strings.TrimSpace(secret)
@@ -66,5 +70,10 @@ func (i *Issuer) Verify(c *domain.ConservationCase) (bool, error) {
 }
 
 func (i *Issuer) VerifySignature(credential domain.ReleaseCredential) bool {
-	return domain.VerifyCredentialSignature(credential, i.secret)
+	if verified, ok := i.verifiedSignatures.Load(credential.ID); ok {
+		return verified.(bool)
+	}
+	verified := domain.VerifyCredentialSignature(credential, i.secret)
+	i.verifiedSignatures.Store(credential.ID, verified)
+	return verified
 }
